@@ -1,1 +1,5 @@
 datasets/
+Conversions/WindData_npy_to_txt/original/
+Conversions/WindData_npy_to_txt/converted/
+Conversions/model_convert_pth_to_onnx/model/
+Conversions/model_convert_pth_to_onnx/old_models/
