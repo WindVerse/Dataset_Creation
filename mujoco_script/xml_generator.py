@@ -19,7 +19,7 @@ def get_model_xml_explicit():
         </visual>
         
         <extension>
-            <plugin plugin="mujoco.elasticity.cable"/>
+            <plugin plugin="mujoco.elasticity.shell"/>
         </extension>
 
         <default>
@@ -40,7 +40,7 @@ def get_model_xml_explicit():
                     <edge equality="true" damping="{p['damping']}"/>
                     <contact condim="3" solref="{p['solref']}" solimp=".95 .99 .0001" selfcollide="none"/>
                     
-                    <plugin plugin="mujoco.elasticity.cable">
+                    <plugin plugin="mujoco.elasticity.shell">
                         <config key="poisson" value="0.403"/>
                         <config key="thickness" value="0.0005"/>
                         <config key="young" value="85242.0"/> 
