@@ -3,92 +3,75 @@ import config as cfg
 def get_model_xml_explicit():
     p = cfg.PHYSICS_CONFIG
     
-    xml_header = f"""
-    <mujoco model="flag_manual">
-        <option timestep="{p['timestep']}" gravity="{p['gravity']}" density="{p['density']}" viscosity="{p['viscosity']}" integrator="{p['integrator']}"/>
-        <visual><map force="0.1" zfar="30"/></visual>
+    # 1. Calculate grid spacing based on physical dimensions
+    # flexcomp requires spacing in "x y z" format
+    spacing_x = p['width_m'] / (p['grid_w'] - 1)
+    spacing_y = p['height_m'] / (p['grid_h'] - 1)
+    
+    xml = f"""
+    <mujoco model="flag_flex">
+        <option timestep="{p['timestep']}" gravity="{p['gravity']}" density="{p['density']}" 
+                viscosity="{p['viscosity']}" integrator="implicitfast" solver="CG" tolerance="1e-6"/>
         
+        <visual>
+            <map force="0.1" zfar="30"/>
+            <headlight ambient="0.6 0.6 0.6" diffuse="0.4 0.4 0.4" specular="0.1 0.1 0.1"/>
+        </visual>
+        
+        <extension>
+            <plugin plugin="mujoco.elasticity.cable"/>
+        </extension>
+
         <default>
-            <geom type="sphere" size="{p['node_radius']}" mass="{p['node_mass']}" rgba=".8 .2 .2 1" friction="{p['friction']}" solref="{p['solref']}"/>
-            <site type="sphere" size="0.002" rgba="1 1 1 0"/>
+            <geom type="sphere" size="{p['node_radius']}" rgba=".8 .2 .2 1"/>
         </default>
 
         <worldbody>
             <light pos="0 0 10"/>
             <geom name="floor" type="plane" size="10 10 .1" pos="0 0 {p['floor_z']}" rgba=".9 .9 .9 1"/>
+            
+            <body name="flag_root" pos="0 0 {p['start_z']}">
+                <flexcomp name="cloth" type="grid" 
+                          count="{p['grid_w']} {p['grid_h']} 1" 
+                          spacing="{spacing_x} {spacing_y} 0.01" 
+                          mass="{p['node_mass'] * p['grid_w'] * p['grid_h']}" 
+                          radius="0.001" rgba=".8 .2 .2 1">
+                    
+                    <edge equality="true" damping="{p['damping']}"/>
+                    <contact condim="3" solref="{p['solref']}" solimp=".95 .99 .0001" selfcollide="none"/>
+                    
+                    <plugin plugin="mujoco.elasticity.cable">
+                        <config key="poisson" value="0.403"/>
+                        <config key="thickness" value="0.0005"/>
+                        <config key="young" value="85242.0"/> 
+                    </plugin>
+                </flexcomp>
+            </body>
+        </worldbody>
+        
+        <equality>
+    """
+
+    # 3. STATIC POLE LOGIC (Weld Constraints)
+    # In flexcomp type="grid", bodies are generated with names "cloth_0", "cloth_1", etc.
+    # The indices usually iterate X first, then Y.
+    # We want to pin the first column (x=0) for every row.
+    # Indices for first column: 0, W, 2W, 3W ...
+    
+    W = p['grid_w']
+    H = p['grid_h']
+    
+    for r in range(H):
+        # The index of the node on the left edge (Column 0) for this row
+        node_idx = r * W
+        
+        # We weld this node to the world (no body2 means body2="world")
+        # 'anchor' isn't strictly needed for a weld at current pos, but helps stability
+        xml += f'        <weld name="pin_{r}" body1="cloth_{node_idx}" />\n'
+
+    xml += """
+        </equality>
+    </mujoco>
     """
     
-    bodies_xml = ""
-    for r in range(p['grid_h']): 
-        for c in range(p['grid_w']):
-            name = f"B_{r}_{c}"
-            site_name = f"S_{r}_{c}"
-            
-            x = c * cfg.SPACING_W
-            y = 0
-            z = p['start_z'] - (r * cfg.SPACING_H)
-            
-            # --- STATIC POLE LOGIC ---
-            # Column 0: No Joint = Static Body (Fixed to World)
-            if c == 0:
-                joint_xml = "" 
-                color_xml = 'rgba=".5 .5 .5 1"'
-            else:
-                # Column 1+: Free Joint with high damping
-                joint_xml = '<joint type="free" damping="0.00001"/>'
-                color_xml = 'rgba=".8 .2 .2 1"'
-
-            bodies_xml += f"""
-            <body name="{name}" pos="{x} {y} {z}">
-                <geom {color_xml}/> 
-                <site name="{site_name}" pos="0 0 0"/> 
-                {joint_xml}
-            </body>
-            """
-    
-    xml_footer_start = "</worldbody>\n<tendon>"
-    
-    tendons_xml = ""
-    
-    def make_tendon(s1_name, s2_name):
-        return f"""
-        <spatial stiffness="{p['stiffness']}" damping="{p['damping']}" width="{p['width']}">
-            <site site="{s1_name}"/> <site site="{s2_name}"/>
-        </spatial>"""
-
-    # Horizontal
-    for r in range(p['grid_h']):
-        for c in range(p['grid_w'] - 1):
-            tendons_xml += make_tendon(f"S_{r}_{c}", f"S_{r}_{c+1}")
-
-    # Vertical
-    for r in range(p['grid_h'] - 1):
-        for c in range(p['grid_w']):
-            tendons_xml += make_tendon(f"S_{r}_{c}", f"S_{r+1}_{c}")
-    
-    # Diagonals
-    for r in range(p['grid_h'] - 1):
-        for c in range(p['grid_w'] - 1):
-            tendons_xml += make_tendon(f"S_{r}_{c}", f"S_{r+1}_{c+1}")
-            tendons_xml += make_tendon(f"S_{r}_{c+1}", f"S_{r+1}_{c}")
-    
-    
-    def make_bend_tendon(s1_name, s2_name):
-        return f"""
-        <spatial stiffness="{p['bending_stiffness']}" damping="{p['damping']}" width="{p['width']}">
-            <site site="{s1_name}"/> <site site="{s2_name}"/>
-        </spatial>"""
-
-    # Horizontal Bending (Skip every other node)
-    for r in range(p['grid_h']):
-        for c in range(p['grid_w'] - 2): # Note the -2
-            tendons_xml += make_bend_tendon(f"S_{r}_{c}", f"S_{r}_{c+2}")
-
-    # Vertical Bending
-    for r in range(p['grid_h'] - 2):
-        for c in range(p['grid_w']):
-            tendons_xml += make_bend_tendon(f"S_{r}_{c}", f"S_{r+2}_{c}")
-
-    xml_end = "</tendon>\n</mujoco>"
-    
-    return xml_header + bodies_xml + xml_footer_start + tendons_xml + xml_end
+    return xml

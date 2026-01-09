@@ -4,10 +4,10 @@ import numpy as np
 # ==========================================
 # SIMULATION SETTINGS
 # ==========================================
-DATASET_VERSION = "6"
+DATASET_VERSION = "temp"
 NUM_RUNS = 1
 FPS = 10
-SECONDS = 30
+SECONDS = 3
 MAX_FRAMES = FPS * SECONDS
 SUBSTEPS = 100
 
@@ -23,20 +23,20 @@ PHYSICS_CONFIG = {
     # Environment
     "gravity": "0 0 -9.81",
     "density": 1.2,       # Air density
-    "viscosity": 0.0,     # Air thickness
+    "viscosity": 0.3,     # Air thickness
     "integrator": "implicitfast", # Best for cloth
 
     # Cloth Material (Nylon-like)
-    "node_mass": 0.001,    # Should be 0.0001 to get 250 GSM
-    "node_radius": 0.008, # Visual size
-    "friction": "0.1 0.1 0.1",
+    "node_mass": 0.005,    # Should be 0.0001 to get 250 GSM
+    "node_radius": 0.001, # Visual size
+    # "friction": "0.1 0.1 0.1",
     "solref": f"{2*(1 / FPS / SUBSTEPS)} 1",
 
     # Springs (Tendons)
-    "stiffness": 200.0,    # Resistance to stretching
-    "bending_stiffness": 10.0,  # Resistance to bending
-    "damping": 0.25,       # Resistance to vibration
-    "width": 0.002,       # Visual thickness
+    # "stiffness": 200.0,    # Resistance to stretching
+    # "bending_stiffness": 10,  # Resistance to bending
+    "damping": 1.0,       # Resistance to vibration
+    # "width": 0.002,       # Visual thickness
 
     # Flag Geometry
     "grid_h": 20,         # Rows
@@ -62,7 +62,7 @@ MID_X, MID_Y, MID_Z = 0.3, 0.0, 0.0
 # PATHS
 # ==========================================
 
-dataset_path = "C:/Users/janin/Desktop/WindVerse/datasets/"
+dataset_path = "../../datasets/"
 wind_data_file = os.path.join(dataset_path, "wind/wind_data_5d_array.npz")
 output_folder = os.path.join(dataset_path, DATASET_VERSION)
 

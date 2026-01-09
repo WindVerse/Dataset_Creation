@@ -39,18 +39,25 @@ if __name__ == "__main__":
     model = mujoco.MjModel.from_xml_string(xml_string)
     data_sim = mujoco.MjData(model)
 
-    cloth_ids = []
-    id_map = {}
+    cloth_bodies = [] 
+    
     for i in range(model.nbody):
         name = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_BODY, i)
-        if name and name.startswith("B_"):
-            parts = name.split('_')
-            r, c = int(parts[1]), int(parts[2])
-            id_map[(r,c)] = i
+        
+        # Check if this body is part of the cloth flexcomp
+        if name and name.startswith("cloth_"):
+            try:
+                # Extract "15" from "cloth_15"
+                idx = int(name.split('_')[1])
+                cloth_bodies.append((idx, i))
+            except ValueError:
+                pass
 
-    for r in range(H):
-        for c in range(W):
-            if (r,c) in id_map: cloth_ids.append(id_map[(r,c)])
+    # SORT by logical index (0, 1, 2...) to ensure topology matches
+    cloth_bodies.sort(key=lambda x: x[0])
+    
+    # Extract just the MuJoCo body IDs in the correct order
+    cloth_ids = [item[1] for item in cloth_bodies]
 
     print(f"🚩 Flag has {len(cloth_ids)} nodes (Should be {H*W}).")
 
@@ -76,8 +83,8 @@ if __name__ == "__main__":
         # ==========================================
         
         # 1. Random Scale (Wind Strength)
-        scale_factor = random.uniform(0.2, 2)
-        # scale_factor = 3
+        # scale_factor = random.uniform(0.2, 2)
+        scale_factor = 0
         
         # 2. Random Rotation (Wind Direction)
         theta = random.uniform(0, 2 * np.pi)
