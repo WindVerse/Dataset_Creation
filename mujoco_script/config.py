@@ -21,22 +21,18 @@ PHYSICS_CONFIG = {
     "timestep": 1 / FPS / SUBSTEPS,
 
     # Environment
-    "gravity": "0 0 -9.81",
-    "density": 1.2,       # Air density
     "viscosity": 0.3,     # Air thickness
-    "integrator": "implicitfast", # Best for cloth
 
     # Cloth Material (Nylon-like)
     "node_mass": 0.005,    # Should be 0.0001 to get 250 GSM
-    "node_radius": 0.001, # Visual size
-    # "friction": "0.1 0.1 0.1",
     "solref": f"{2*(1 / FPS / SUBSTEPS)} 1",
 
     # Springs (Tendons)
-    # "stiffness": 200.0,    # Resistance to stretching
-    # "bending_stiffness": 10,  # Resistance to bending
     "damping": 1.0,       # Resistance to vibration
-    # "width": 0.002,       # Visual thickness
+    
+    "poisson": 0.403,      # Poisson's Ratio
+    "thickness": 0.0005,   # Shell Thickness (meters)
+    "young": 85242.0,      # Young's Modulus (Elasticity)
 
     # Flag Geometry
     "grid_h": 20,         # Rows
@@ -44,9 +40,6 @@ PHYSICS_CONFIG = {
     "height_m": 0.4,      # Total Height (meters)
     "width_m": 0.6,       # Total Width (meters)
     "start_z": 0.2,       # Z-height of top row
-
-    # World
-    "floor_z": -100.0
 }
 
 # Calculated Spacing
@@ -55,7 +48,7 @@ SPACING_W = PHYSICS_CONFIG["width_m"] / (PHYSICS_CONFIG["grid_w"] - 1)
 
 
 # Wind Cube Logic Midpoints
-MID_X, MID_Y, MID_Z = 0.3, 0.0, 0.0
+MID_X, MID_Y, MID_Z = 0.0, 0.0, 0.0
 
 
 # ==========================================

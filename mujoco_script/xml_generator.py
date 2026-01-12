@@ -3,47 +3,57 @@ import config as cfg
 def get_model_xml_explicit():
     p = cfg.PHYSICS_CONFIG
     
-    # 1. Calculate grid spacing based on physical dimensions
-    # flexcomp requires spacing in "x y z" format
+    # 1. Spacing Calculation
     spacing_x = p['width_m'] / (p['grid_w'] - 1)
     spacing_y = p['height_m'] / (p['grid_h'] - 1)
+
+    # 2. Position & Orientation Logic
+    # ---------------------------------------------------------
+    # GOAL: X range [0, 0.6], Z range [-0.2, 0.2]
+    #
+    # A. CENTER X:
+    # Since the grid is width 0.6 centered at 0 (range -0.3 to 0.3),
+    # we shift it right by half the width (0.3) to get range 0.0 to 0.6.
+    center_x = p['width_m'] / 2.0  # = 0.3
     
+    # B. CENTER Z:
+    # We want Z range -0.2 to 0.2. The center of this range is 0.0.
+    # (Config 'start_z' is 0.2, 'height' is 0.4.  0.2 - (0.4/2) = 0.0)
+    center_z = p['start_z'] - (p['height_m'] / 2.0) # = 0.0
+    
+    # C. ROTATION:
+    # The grid creates X (width) and Y (height). 
+    # We rotate 90 degrees on X-axis so that Y points up/down (aligns with Z).
+    # ---------------------------------------------------------
+
     xml = f"""
     <mujoco model="flag_flex">
-        <option timestep="{p['timestep']}" gravity="{p['gravity']}" density="{p['density']}" 
-                viscosity="{p['viscosity']}" integrator="implicitfast" solver="CG" tolerance="1e-6"/>
-        
-        <visual>
-            <map force="0.1" zfar="30"/>
-            <headlight ambient="0.6 0.6 0.6" diffuse="0.4 0.4 0.4" specular="0.1 0.1 0.1"/>
-        </visual>
+        <compiler angle="degree"/>
+        <option timestep="0.01" integrator="implicitfast" viscosity="{p['viscosity']}" solver="CG" tolerance="1e-6"/>
         
         <extension>
             <plugin plugin="mujoco.elasticity.shell"/>
         </extension>
 
-        <default>
-            <geom type="sphere" size="{p['node_radius']}" rgba=".8 .2 .2 1"/>
-        </default>
-
         <worldbody>
             <light pos="0 0 10"/>
-            <geom name="floor" type="plane" size="10 10 .1" pos="0 0 {p['floor_z']}" rgba=".9 .9 .9 1"/>
+            <geom name="floor" type="plane" size="10 10 .1" pos="0 0 -1" rgba=".9 .9 .9 1"/>
             
-            <body name="flag_root" pos="0 0 {p['start_z']}">
-                <flexcomp name="cloth" type="grid" 
+            <body name="flag_root" pos="{center_x} 0 {center_z}" euler="90 0 0">
+                
+                <flexcomp type="grid" name="cloth"
                           count="{p['grid_w']} {p['grid_h']} 1" 
-                          spacing="{spacing_x} {spacing_y} 0.01" 
+                          spacing="{spacing_x} {spacing_y} 0.01"
                           mass="{p['node_mass'] * p['grid_w'] * p['grid_h']}" 
-                          radius="0.001" rgba=".8 .2 .2 1">
+                          radius="0.001" rgba="1 0 0 0.3">
                     
                     <edge equality="true" damping="{p['damping']}"/>
-                    <contact condim="3" solref="{p['solref']}" solimp=".95 .99 .0001" selfcollide="none"/>
+                    <contact condim="3" solref="{p['solref']}" solimp=".95 .99 .0001"/>
                     
                     <plugin plugin="mujoco.elasticity.shell">
-                        <config key="poisson" value="0.403"/>
-                        <config key="thickness" value="0.0005"/>
-                        <config key="young" value="85242.0"/> 
+                        <config key="poisson" value="{p['poisson']}"/>
+                        <config key="thickness" value="{p['thickness']}"/>
+                        <config key="young" value="{p['young']}"/> 
                     </plugin>
                 </flexcomp>
             </body>
@@ -53,21 +63,24 @@ def get_model_xml_explicit():
     """
 
     # 3. STATIC POLE LOGIC (Weld Constraints)
-    # In flexcomp type="grid", bodies are generated with names "cloth_0", "cloth_1", etc.
-    # The indices usually iterate X first, then Y.
-    # We want to pin the first column (x=0) for every row.
-    # Indices for first column: 0, W, 2W, 3W ...
+    # Even after rotation, the topology logic (indices) remains the same.
+    # We pin Column 0 (the left edge).
     
     W = p['grid_w']
     H = p['grid_h']
     
     for r in range(H):
-        # The index of the node on the left edge (Column 0) for this row
-        node_idx = r * W
+        # TRY THIS: Sequential indexing (0, 1, 2 ... H-1)
+        # This assumes the nodes 0..H-1 represent the first vertical column (pole).
+        node_idx = r
         
-        # We weld this node to the world (no body2 means body2="world")
-        # 'anchor' isn't strictly needed for a weld at current pos, but helps stability
-        xml += f'        <weld name="pin_{r}" body1="cloth_{node_idx}" />\n'
+        # If the flag looks like it's pinned horizontally along the top instead,
+        # then the grid is Row-Major and we need the old logic:
+        # node_idx = r * W
+
+        # Explicitly name the pin for easier debugging in the visualizer
+        # xml += f'        <weld name="pin_{r}" body1="cloth_{node_idx}" />\n'
+        xml += f'        <weld name="pin_{r}" body1="cloth_{node_idx}" solref="0.001 1" solimp="0.99 0.999 0.001"/>\n'
 
     xml += """
         </equality>

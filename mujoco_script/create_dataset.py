@@ -39,25 +39,30 @@ if __name__ == "__main__":
     model = mujoco.MjModel.from_xml_string(xml_string)
     data_sim = mujoco.MjData(model)
 
-    cloth_bodies = [] 
+    cloth_ids = []
     
-    for i in range(model.nbody):
-        name = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_BODY, i)
-        
-        # Check if this body is part of the cloth flexcomp
-        if name and name.startswith("cloth_"):
-            try:
-                # Extract "15" from "cloth_15"
-                idx = int(name.split('_')[1])
-                cloth_bodies.append((idx, i))
-            except ValueError:
-                pass
-
-    # SORT by logical index (0, 1, 2...) to ensure topology matches
-    cloth_bodies.sort(key=lambda x: x[0])
-    
-    # Extract just the MuJoCo body IDs in the correct order
-    cloth_ids = [item[1] for item in cloth_bodies]
+    # Loop Columns (x) first, then Rows (y)
+    # This ensures cloth_ids[0] corresponds to index 0 in your topology
+    for c in range(W):      # Cols
+        for r in range(H):  # Rows
+            
+            # Name format depends on generator. 
+            # If using flexcomp grid, names are usually "cloth_0", "cloth_1"...
+            # If manual bodies, "B_{r}_{c}"...
+            
+            # Since you are using flexcomp, MuJoCo auto-names them sequentially.
+            # We just need to find the ID of "cloth_{i}" where i is the sequential index.
+            
+            # Calculate the sequential index 
+            seq_idx = c * H + r
+            name = f"cloth_{seq_idx}" 
+            
+            body_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, name)
+            
+            if body_id != -1:
+                cloth_ids.append(body_id)
+            else:
+                print(f"⚠️ Warning: Could not find body {name}")
 
     print(f"🚩 Flag has {len(cloth_ids)} nodes (Should be {H*W}).")
 
@@ -83,8 +88,8 @@ if __name__ == "__main__":
         # ==========================================
         
         # 1. Random Scale (Wind Strength)
-        # scale_factor = random.uniform(0.2, 2)
-        scale_factor = 0
+        scale_factor = random.uniform(0.2, 2)
+        # scale_factor = 1
         
         # 2. Random Rotation (Wind Direction)
         theta = random.uniform(0, 2 * np.pi)
@@ -154,7 +159,7 @@ if __name__ == "__main__":
                 
                 # 3. Compute Aero Forces (The heavy lifting)
                 # returns (M, 3) forces
-                tri_forces = phys.compute_drag_lift_vectorized(all_pos, all_vel, triangle_indices, wind_vecs)
+                tri_forces = phys.compute_drag_lift_vectorized_arcsim(all_pos, all_vel, triangle_indices, wind_vecs)
                 
                 # 4. Accumulate Forces on Nodes
                 # We need to sum up forces because one node shares multiple triangles
