@@ -20,10 +20,10 @@ max_frames = 10
 SUBSTEPS = 100 * (10// frame_rate)  # Adjust substeps based on desired frame rate (10 FPS default)
 Winds = [[0, 0, 0], [3, 3, 3], [5, 0, 5], [10, -2, 3], [-12, 0, 2]]
 
-viscosities = [0.1, 0.2, 0.3]  # Air thickness
-node_masses = [0.0005, 0.001, 0.005]  # Should be 0.0001 to get 250 GSM
-dampings = [0.5, 1.0, 1.5]  # Resistance to vibration
-poissons = [0.2, 0.403, 0.5]  # Poisson's Ratio
+viscosities = [0.1, 0.3]  # Air thickness
+node_masses = [0.001, 0.005]  # Should be 0.0001 to get 250 GSM
+dampings = [0.5, 1.0]  # Resistance to vibration
+poissons = [0.3, 0.403, 0.5]  # Poisson's Ratio
 thicknesses = [0.0001, 0.0005, 0.001]  # Shell Thickness (meters)
 youngs = [40000, 85242.0, 100000]  # Young's Modulus (Elasticity)
 solrefs = [f"{0.001} 1", f"{0.002} 1"]
@@ -128,6 +128,7 @@ def get_model_xml_explicit(viscosity, node_mass, damping, poisson, thickness, yo
 if __name__ == "__main__":
     
     num_of_possible_combinations = len(viscosities) * len(node_masses) * len(dampings) * len(poissons) * len(thicknesses) * len(youngs) * len(solrefs)
+    print(f"Total combinations to run: {num_of_possible_combinations}")
     
     wind = Winds[int(run) - 1]
     print(f"Using wind: {wind}")
@@ -141,7 +142,7 @@ if __name__ == "__main__":
 
     print("=== STARTING GRID SEARCH ===")
     
-    i = 0
+    j = 0
 
     for viscosity in viscosities:
         for node_mass in node_masses:
@@ -152,8 +153,8 @@ if __name__ == "__main__":
                             for solref in solrefs:
                                 print(f"Running with viscosity={viscosity}, node_mass={node_mass}, damping={damping}, poisson={poisson}, thickness={thickness}, young={young}, solref={solref}")
 
-                                i += 1
-                                dataset_path = os.path.join(dataset_path_old, str(i))
+                                j += 1
+                                dataset_path = os.path.join(dataset_path_old, str(j))
                                 
                                 flag_output_folder = os.path.join(dataset_path, "flags")
                                 flag_obj_folder = os.path.join(dataset_path, "flag_objs")
@@ -264,6 +265,6 @@ if __name__ == "__main__":
                                     help.save_obj(np.array(pos_list), triangle_indices, os.path.join(flag_obj_folder, f"flag_{run}_{frame_idx:03d}.obj"))
                                     
                                     # Dynamic progress update
-                                    print(f"\r  {str(i)}/{str(num_of_possible_combinations)} | Frame {frame_idx}/{max_frames} Saved", end="", flush=True)
+                                    print(f"\r  {str(j)}/{str(num_of_possible_combinations)} | Frame {frame_idx}/{max_frames} Saved", end="", flush=True)
 
                             print("\n✅ Grid Dataset Generation Complete!")
