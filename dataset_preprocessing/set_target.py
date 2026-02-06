@@ -2,8 +2,8 @@ import os
 import shutil
 import numpy as np
 
-target = "accelerations"     # displacements, velocity_differences, accelerations
-dataset_ver = 6
+target = "displacements"     # displacements, velocity_differences, accelerations
+dataset_ver = 7
 num_of_iterations = 100
 frames_per_iteration = 300
 fps = 10

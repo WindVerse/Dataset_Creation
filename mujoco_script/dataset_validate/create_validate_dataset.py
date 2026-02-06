@@ -5,19 +5,19 @@ import random
 import sys
 
 # Import our custom modules
-import config as cfg
-import mujoco_script.helpers as help
-import xml_generator as xml_gen
+import v_config as cfg
+import validate_helpers as help
+import generate_validate_xml as xml_gen
 
 # ==========================================
 # MAIN EXECUTION
 # ==========================================
 if __name__ == "__main__":
     
-    # Use config NUM_RUNS unless overridden by CLI argument
-    num_runs = cfg.NUM_RUNS
-    if len(sys.argv) > 1:
-        num_runs = int(sys.argv[1])
+    wind_array = cfg.WIND_ARRAY
+        
+    # Use config length of wind aray to get num of runs
+    num_runs = len(wind_array)
     
     H, W = cfg.PHYSICS_CONFIG['grid_h'], cfg.PHYSICS_CONFIG['grid_w']
         
@@ -25,14 +25,6 @@ if __name__ == "__main__":
     num_triangles = len(triangle_indices)
     
     help.generate_and_save_topology()
-
-    if not os.path.exists(cfg.wind_data_file):
-        raise FileNotFoundError(f"Cannot find {cfg.wind_data_file}")
-    
-    data = np.load(cfg.wind_data_file, allow_pickle=True)
-    wind_data = np.nan_to_num(data["wind_data"])
-    n_components, n_z, n_y, n_x, n_time = wind_data.shape
-    print(f"✅ Wind Data Loaded: \n num of components: {n_components} \nx: {n_x}, y: {n_y}, z: {n_z}, \ntime steps: {n_time}")
 
     print("🚀 Initializing MuJoCo...")
     xml_string = xml_gen.get_model_xml_explicit()
@@ -76,77 +68,25 @@ if __name__ == "__main__":
         
         # Frame 000 (Init)
         pos_list = [data_sim.xpos[i].copy() for i in cloth_ids]
-        vel_list = [data_sim.cvel[i][:3].copy() for i in cloth_ids]
-        combined = np.hstack((np.array(pos_list), np.array(vel_list)))
         
-        np.save(os.path.join(cfg.flag_output_folder, f"flag_{run:03d}_000.npy"), combined)
-        np.save(os.path.join(cfg.wind_output_folder, f"wind_{run:03d}_000.npy"), np.zeros((8, 3)))
+        np.save(os.path.join(cfg.flag_output_folder, f"flag_{run:03d}_000.npy"), pos_list)
+        help.save_obj(np.array(pos_list), triangle_indices, os.path.join(cfg.flag_obj_folder, f"flag_{run:03d}_000.obj"))
         print(f"  Run {run} | Frame 000 (Init) Saved")
         
         if run == 1:
-            obj_path = os.path.join(cfg.topology_output_folder, "flag_initial.obj")
-            help.save_obj(np.array(pos_list), triangle_indices, obj_path)
+            wind_path = os.path.join(cfg.topology_output_folder, "wind.npy")
+            np.save(wind_path, wind_array)
+            print(f"  Initial Topology OBJ and Wind Array Saved")
 
-        # ==========================================
-        # --- WIND AUGMENTATION (PER RUN) ---
-        # ==========================================
-        
-        # 1. Random Scale (Wind Strength)
-        scale_factor = random.uniform(0.2, 2)
-        # scale_factor = 1
-        
-        # 2. Random Rotation (Wind Direction)
-        theta = random.uniform(0, 2 * np.pi)
-        c, s = np.cos(theta), np.sin(theta)
-        
-        # Rotation Matrix (Rotate around Z-axis)
-        rot_matrix = np.array([
-            [c, -s, 0],
-            [s,  c, 0],
-            [0,  0, 1]
-        ])
+        current_wind = wind_array[run - 1]  # Get the wind vector for this run
+        print(f"  Run {run} | Wind Vector: {current_wind}")
 
-        found_valid_wind = False
-        attempts = 0
-        start_x, start_y, start_z = 0, 0, 0
-        while not found_valid_wind:
-            random.seed(run + attempts)
-            start_x = random.randint(0, n_x - 2)
-            start_y = random.randint(0, n_y - 2)
-            start_z = random.randint(0, n_z - 2)
-            wind_chunk = wind_data[:, start_z, start_y, start_x, :50]
-            if not np.allclose(wind_chunk, 0): found_valid_wind = True
-            else: attempts += 1
-            if attempts > 100: break
-        
-        if not found_valid_wind: continue
-
-        for t in range(cfg.MAX_FRAMES):
-            t_wind = min(t, n_time - 1)
-            
-            current_8_winds = []
-            
-            for dx in [0, 1]:
-                for dy in [0, 1]:
-                    for dz in [0, 1]:
-                        vec = wind_data[:, start_z+dz, start_y+dy, start_x+dx, t_wind]
-                        
-                        # apply augmentation rotation and scaling
-                        vec_rotated = rot_matrix @ vec
-                        vec_final = vec_rotated * scale_factor
-                        current_8_winds.append(vec_final)
-            current_8_winds = np.array(current_8_winds)
+        for t in range(cfg.MAX_FRAMES):            
 
             for _ in range(cfg.SUBSTEPS):
-                # 1. Get All Data from MuJoCo (Vectorized)
-                # We need full arrays for all bodies
-                # This assumes cloth_ids are contiguous or we map them efficiently
-                # Best way: Extract all relevant data into numpy arrays
-                
-                # Create arrays filled with current state
-                # Note: This list comprehension is still Python but faster than calculating physics in Python
+
                 all_pos = np.array([data_sim.xpos[i] for i in cloth_ids])
-                all_vel = np.array([data_sim.cvel[i][3:] for i in cloth_ids]) # Linear velocity
+                all_vel = np.array([data_sim.cvel[i][3:] for i in cloth_ids])
                 
                 # 2. Get Wind for Triangles
                 # We need the position of the CENTER of each triangle
@@ -159,7 +99,7 @@ if __name__ == "__main__":
                 # Fast loop for wind lookup is okay
                 wind_vecs = np.zeros((num_triangles, 3))
                 for i in range(num_triangles):
-                     wind_vecs[i] = help.get_cube_wind(centers[i], current_8_winds)
+                     wind_vecs[i] = current_wind
                 
                 # 3. Compute Aero Forces (The heavy lifting)
                 # returns (M, 3) forces
@@ -195,11 +135,9 @@ if __name__ == "__main__":
             
             frame_idx = t + 1
             pos_list = [data_sim.xpos[i].copy() for i in cloth_ids]
-            vel_list = [data_sim.cvel[i][3:].copy() for i in cloth_ids]
-            combined = np.hstack((np.array(pos_list), np.array(vel_list)))
             
-            np.save(os.path.join(cfg.flag_output_folder, f"flag_{run:03d}_{frame_idx:03d}.npy"), combined)
-            np.save(os.path.join(cfg.wind_output_folder, f"wind_{run:03d}_{frame_idx:03d}.npy"), current_8_winds)
+            np.save(os.path.join(cfg.flag_output_folder, f"flag_{run:03d}_{frame_idx:03d}.npy"), pos_list)
+            help.save_obj(np.array(pos_list), triangle_indices, os.path.join(cfg.flag_obj_folder, f"flag_{run:03d}_{frame_idx:03d}.obj"))
             
             # Dynamic progress update
             print(f"\r  Run {run} | Frame {frame_idx}/{cfg.MAX_FRAMES} Saved", end="", flush=True)

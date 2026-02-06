@@ -1,6 +1,6 @@
 import numpy as np
 import os
-import config as cfg  # Import settings from config.py
+import v_config as cfg
 
 def generate_and_save_topology():
     """
@@ -45,14 +45,64 @@ def generate_and_save_topology():
     print(f"✅ Topology saved to {save_path}")
     print(f"   Nodes: {H*W}, Edges: {edge_index.shape[1]}")
 
-def get_cube_wind(pos, wind_8_vectors):
-    x, y, z = pos
-    idx_x = 1 if x > cfg.MID_X else 0
-    idx_y = 1 if y > cfg.MID_Y else 0
-    idx_z = 1 if z > cfg.MID_Z else 0
-    cube_index = (idx_x * 4) + (idx_y * 2) + idx_z
-    return wind_8_vectors[cube_index]
+def get_triangle_indices(H, W):
+    """
+    Generates triangle indices for a COLUMN-MAJOR grid to match MuJoCo flexcomp.
+    Formula: idx = col * H + row
+    """
+    indices = []
+    
+    # Helper to ensure consistency
+    def get_idx(r, c):
+        return c * H + r
 
+    for r in range(H - 1):
+        for c in range(W - 1):
+            # Calculate indices using Column-Major logic
+            # (r, c)     (r, c+1)
+            #   TL -------- TR
+            #   |         / |
+            #   |       /   |
+            #   |     /     |
+            #   BL -------- BR
+            # (r+1, c)   (r+1, c+1)
+
+            tl = get_idx(r, c)          # Top-Left
+            tr = get_idx(r, c + 1)      # Top-Right
+            bl = get_idx(r + 1, c)      # Bottom-Left
+            br = get_idx(r + 1, c + 1)  # Bottom-Right
+            
+            # Triangle 1 (Top-Left, Bottom-Left, Top-Right)
+            # Note: The winding order (CCW vs CW) determines the normal direction.
+            # Standard CCW:
+            indices.append([tl, bl, tr])
+            
+            # Triangle 2 (Top-Right, Bottom-Left, Bottom-Right)
+            indices.append([tr, bl, br])
+            
+    return np.array(indices, dtype=np.int32)
+
+
+def save_obj(vertices, faces, filename):
+    """
+    Saves mesh data to a .obj file compatible with Unity/Blender.
+    vertices: (N, 3) numpy array of positions
+    faces: (M, 3) numpy array of triangle indices (0-based)
+    """
+    with open(filename, 'w') as f:
+        f.write("# Initial Flag Mesh for Unity\n")
+        # 1. Write Vertices (v x y z)
+        # Unity uses a different coordinate system (Y-up, Left-handed), 
+        # but standard export (Z-up) usually imports fine with -90 rotation x-form.
+        for v in vertices:
+            # Writing standard MuJoCo coordinates (usually Z-up)
+            f.write(f"v {v[0]:.6f} {v[1]:.6f} {v[2]:.6f}\n")
+            
+        # 2. Write Faces (f v1 v2 v3)
+        # Note: OBJ indices are 1-based, Python is 0-based
+        for face in faces:
+            f.write(f"f {face[0]+1} {face[1]+1} {face[2]+1}\n")
+            
 # def compute_aero_force(velocity_cloth, velocity_wind, normal_vector):
 #     v_rel = velocity_wind - velocity_cloth
 #     v_mag = np.linalg.norm(v_rel)
@@ -227,12 +277,11 @@ def compute_drag_lift_vectorized_arcsim(pos_all, vel_all, triangles, wind_vector
     # -------------------------------------------------------
     # Constants from ARCSim (You can tune these)
     # wind.density (Air Density)
-    air_density = 1.225 
+    air_density = cfg.PHYSICS_CONFIG['air_density'] 
     
     # wind.drag (Tangential Friction Coefficient)
-    # NOTE: In ARCSim C++, this is a linear coefficient, not quadratic.
-    # A value of 0.1 to 0.5 is usually good for cloth friction.
-    drag_coeff = 0.1 
+    # NOTE: In ARCSim C++, this is 0 as default, meaning no tangential drag. We can set it to a small value for realism.
+    drag_coeff = cfg.PHYSICS_CONFIG['drag_coeff']
     
     # Force 1: Normal (Pressure)
     # C++: wind.density * face->a * abs(vn) * vn * face->n
