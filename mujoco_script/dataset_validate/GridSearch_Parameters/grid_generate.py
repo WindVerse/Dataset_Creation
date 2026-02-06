@@ -127,6 +127,8 @@ def get_model_xml_explicit(viscosity, node_mass, damping, poisson, thickness, yo
 
 if __name__ == "__main__":
     
+    num_of_possible_combinations = len(viscosities) * len(node_masses) * len(dampings) * len(poissons) * len(thicknesses) * len(youngs) * len(solrefs)
+    
     wind = Winds[int(run) - 1]
     print(f"Using wind: {wind}")
     
@@ -262,6 +264,6 @@ if __name__ == "__main__":
                                     help.save_obj(np.array(pos_list), triangle_indices, os.path.join(flag_obj_folder, f"flag_{run}_{frame_idx:03d}.obj"))
                                     
                                     # Dynamic progress update
-                                    print(f"\r  Run {run} | Frame {frame_idx}/{max_frames} Saved", end="", flush=True)
+                                    print(f"\r  {i}/{num_of_possible_combinations} | Frame {frame_idx}/{max_frames} Saved", end="", flush=True)
 
                             print("\n✅ Grid Dataset Generation Complete!")
