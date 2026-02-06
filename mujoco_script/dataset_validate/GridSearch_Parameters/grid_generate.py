@@ -264,6 +264,6 @@ if __name__ == "__main__":
                                     help.save_obj(np.array(pos_list), triangle_indices, os.path.join(flag_obj_folder, f"flag_{run}_{frame_idx:03d}.obj"))
                                     
                                     # Dynamic progress update
-                                    print(f"\r  {i}/{num_of_possible_combinations} | Frame {frame_idx}/{max_frames} Saved", end="", flush=True)
+                                    print(f"\r  {str(i)}/{str(num_of_possible_combinations)} | Frame {frame_idx}/{max_frames} Saved", end="", flush=True)
 
                             print("\n✅ Grid Dataset Generation Complete!")
