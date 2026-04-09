@@ -3,6 +3,7 @@ import numpy as np
 import os
 import random
 import sys
+import time
 
 # Import our custom modules
 import v_config as cfg
@@ -61,7 +62,7 @@ if __name__ == "__main__":
     print("=== STARTING SIMULATIONS ===")
 
     for run in range(1, num_runs + 1):
-        print(f"--- Run {run}/{num_runs} ---")
+        print(f"\n--- Run {run}/{num_runs} ---")
         
         mujoco.mj_resetData(model, data_sim)
         mujoco.mj_forward(model, data_sim)
@@ -81,7 +82,11 @@ if __name__ == "__main__":
         current_wind = wind_array[run - 1]  # Get the wind vector for this run
         print(f"  Run {run} | Wind Vector: {current_wind}")
 
-        for t in range(cfg.MAX_FRAMES):            
+        Time = 0.0
+
+        for t in range(cfg.MAX_FRAMES):    
+            
+            t1 = time.time()
 
             for _ in range(cfg.SUBSTEPS):
 
@@ -132,6 +137,13 @@ if __name__ == "__main__":
                     data_sim.xfrc_applied[body_id][:3] = node_forces[i]
                 
                 mujoco.mj_step(model, data_sim)
+                
+                # Dynamic progress update for substeps
+                print(f"\r  Run {run} | Frame {t+1}/{cfg.MAX_FRAMES} | Substep {_+1}/{cfg.SUBSTEPS}", end="", flush=True)
+                sys.stdout.flush()
+                
+            t2 = time.time()
+            Time += (t2 - t1)
             
             frame_idx = t + 1
             pos_list = [data_sim.xpos[i].copy() for i in cloth_ids]
@@ -139,7 +151,9 @@ if __name__ == "__main__":
             np.save(os.path.join(cfg.flag_output_folder, f"flag_{run:03d}_{frame_idx:03d}.npy"), pos_list)
             help.save_obj(np.array(pos_list), triangle_indices, os.path.join(cfg.flag_obj_folder, f"flag_{run:03d}_{frame_idx:03d}.obj"))
             
-            # Dynamic progress update
-            print(f"\r  Run {run} | Frame {frame_idx}/{cfg.MAX_FRAMES} Saved", end="", flush=True)
+            # # Dynamic progress update
+            # print(f"\r  Run {run} | Frame {frame_idx}/{cfg.MAX_FRAMES} Saved", end="", flush=True)
+            
+        print(f"\n  Run {run} Completed in {Time:.2f} seconds. Average per frame: {Time/cfg.MAX_FRAMES:.2f} seconds.")
 
     print("\n✅ Dataset Generation Complete!")

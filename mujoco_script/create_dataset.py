@@ -6,7 +6,7 @@ import sys
 
 # Import our custom modules
 import config as cfg
-import mujoco_script.helpers as help
+import helpers as help
 import xml_generator as xml_gen
 
 # ==========================================
@@ -14,17 +14,24 @@ import xml_generator as xml_gen
 # ==========================================
 if __name__ == "__main__":
     
-    # Use config NUM_RUNS unless overridden by CLI argument
-    num_runs = cfg.NUM_RUNS
+    start_run = 1
+    end_run = cfg.NUM_RUNS
+    
     if len(sys.argv) > 1:
-        num_runs = int(sys.argv[1])
+        try:
+            start_run = int(sys.argv[1])
+            end_run = int(sys.argv[2])
+            print(f"Running with custom range: {start_run} to {end_run}")
+        except:
+            print("Invalid command line arguments. Usage: python create_dataset.py [start_run] [end_run]")
+            sys.exit(1)
+    else:
+        print(f"Running with default range: {start_run} to {end_run}")
     
     H, W = cfg.PHYSICS_CONFIG['grid_h'], cfg.PHYSICS_CONFIG['grid_w']
-        
-    triangle_indices = help.get_triangle_indices(H, W)
-    num_triangles = len(triangle_indices)
     
-    help.generate_and_save_topology()
+    edge_index, faces_array = help.generate_and_save_topology()
+    num_triangles = len(faces_array)
 
     if not os.path.exists(cfg.wind_data_file):
         raise FileNotFoundError(f"Cannot find {cfg.wind_data_file}")
@@ -32,9 +39,9 @@ if __name__ == "__main__":
     data = np.load(cfg.wind_data_file, allow_pickle=True)
     wind_data = np.nan_to_num(data["wind_data"])
     n_components, n_z, n_y, n_x, n_time = wind_data.shape
-    print(f"✅ Wind Data Loaded: \n num of components: {n_components} \nx: {n_x}, y: {n_y}, z: {n_z}, \ntime steps: {n_time}")
+    print(f"Wind Data Loaded: \n num of components: {n_components} \nx: {n_x}, y: {n_y}, z: {n_z}, \ntime steps: {n_time}")
 
-    print("🚀 Initializing MuJoCo...")
+    print("Initializing MuJoCo...")
     xml_string = xml_gen.get_model_xml_explicit()
     model = mujoco.MjModel.from_xml_string(xml_string)
     data_sim = mujoco.MjData(model)
@@ -62,14 +69,16 @@ if __name__ == "__main__":
             if body_id != -1:
                 cloth_ids.append(body_id)
             else:
-                print(f"⚠️ Warning: Could not find body {name}")
+                print(f"Warning: Could not find body {name}")
 
-    print(f"🚩 Flag has {len(cloth_ids)} nodes (Should be {H*W}).")
+    print(f"Flag has {len(cloth_ids)} nodes (Should be {H*W}).")
 
     print("=== STARTING SIMULATIONS ===")
 
-    for run in range(1, num_runs + 1):
-        print(f"--- Run {run}/{num_runs} ---")
+    for run in range(start_run, end_run + 1):
+        print(f"--- Run {run} (up to {end_run}) ---")
+        
+        random.seed(run)
         
         mujoco.mj_resetData(model, data_sim)
         mujoco.mj_forward(model, data_sim)
@@ -85,7 +94,7 @@ if __name__ == "__main__":
         
         if run == 1:
             obj_path = os.path.join(cfg.topology_output_folder, "flag_initial.obj")
-            help.save_obj(np.array(pos_list), triangle_indices, obj_path)
+            help.save_obj(np.array(pos_list), faces_array, obj_path)
 
         # ==========================================
         # --- WIND AUGMENTATION (PER RUN) ---
@@ -110,7 +119,6 @@ if __name__ == "__main__":
         attempts = 0
         start_x, start_y, start_z = 0, 0, 0
         while not found_valid_wind:
-            random.seed(run + attempts)
             start_x = random.randint(0, n_x - 2)
             start_y = random.randint(0, n_y - 2)
             start_z = random.randint(0, n_z - 2)
@@ -150,9 +158,9 @@ if __name__ == "__main__":
                 
                 # 2. Get Wind for Triangles
                 # We need the position of the CENTER of each triangle
-                p0 = all_pos[triangle_indices[:, 0]]
-                p1 = all_pos[triangle_indices[:, 1]]
-                p2 = all_pos[triangle_indices[:, 2]]
+                p0 = all_pos[faces_array[:, 0]]
+                p1 = all_pos[faces_array[:, 1]]
+                p2 = all_pos[faces_array[:, 2]]
                 centers = (p0 + p1 + p2) / 3.0
                 
                 # Vectorized wind lookup (You'll need to update get_cube_wind to handle arrays or loop briefly)
@@ -163,7 +171,7 @@ if __name__ == "__main__":
                 
                 # 3. Compute Aero Forces (The heavy lifting)
                 # returns (M, 3) forces
-                tri_forces = help.compute_drag_lift_vectorized_arcsim(all_pos, all_vel, triangle_indices, wind_vecs)
+                tri_forces = help.compute_drag_lift_vectorized_arcsim(all_pos, all_vel, faces_array, wind_vecs)
                 
                 # 4. Accumulate Forces on Nodes
                 # We need to sum up forces because one node shares multiple triangles
@@ -171,11 +179,11 @@ if __name__ == "__main__":
                 
                 # Numpy magic: Add at specific indices (handles duplicates correctly)
                 # Add force to Vertex 0 of every triangle
-                np.add.at(node_forces, triangle_indices[:, 0], tri_forces)
+                np.add.at(node_forces, faces_array[:, 0], tri_forces)
                 # Add force to Vertex 1
-                np.add.at(node_forces, triangle_indices[:, 1], tri_forces)
+                np.add.at(node_forces, faces_array[:, 1], tri_forces)
                 # Add force to Vertex 2
-                np.add.at(node_forces, triangle_indices[:, 2], tri_forces)
+                np.add.at(node_forces, faces_array[:, 2], tri_forces)
                 
                 # 5. Apply Safe Clamp & Send to MuJoCo
                 MAX_FORCE = 0.05
@@ -204,4 +212,4 @@ if __name__ == "__main__":
             # Dynamic progress update
             print(f"\r  Run {run} | Frame {frame_idx}/{cfg.MAX_FRAMES} Saved", end="", flush=True)
 
-    print("\n✅ Dataset Generation Complete!")
+    print("\nDataset Generation Complete!")

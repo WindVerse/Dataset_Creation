@@ -10,12 +10,12 @@ if TEST:
     DATASET_VERSION = "temp"
     WIND_ARRAY = [[3, 3, 3]]
     FPS = 10
-    SECONDS = 5
-    MAX_FRAMES = FPS * SECONDS
-    SUBSTEPS = 100
+    SECONDS = 0.2
+    MAX_FRAMES = int(FPS * SECONDS)
+    SUBSTEPS = 200
 else:
     DATASET_VERSION = "1"
-    WIND_ARRAY = [[0, 0, 0], [3, 3, 3], [5, 0, 5], [10, -2, 3], [-12, 0, 2]]
+    WIND_ARRAY = [[0, 0, 0], [3, 3, 3], [5, 0, 5], [10, -2, 3], [-12, 0, 8]]
     FPS = 10
     SECONDS = 5
     MAX_FRAMES = FPS * SECONDS
@@ -27,25 +27,25 @@ else:
 
 PHYSICS_CONFIG = {
         
-    "air_density": 1.225,
-    "drag_coeff": 0.1,
+    "air_density": 1,
+    "drag_coeff": 0,
     
 
     # Simulation Precision (Lower is more stable)
     "timestep": 1 / FPS / SUBSTEPS,
 
     # Environment
-    "viscosity": 0.3,     # Air thickness
+    "viscosity": 0.3 - 0.1,     # Air thickness
 
     # Cloth Material (Nylon-like)
-    "node_mass": 0.005,    # Should be 0.0001 to get 250 GSM
+    "node_mass": 0.0005 * 2,    # Should be 0.0001 to get 250 GSM
     "solref": f"{2*(1 / FPS / SUBSTEPS)} 1",
 
     # Springs (Tendons)
     "damping": 1.0,       # Resistance to vibration
     
     "poisson": 0.403,      # Poisson's Ratio
-    "thickness": 0.0005,   # Shell Thickness (meters)
+    "thickness": 0.0005 * 2,   # Shell Thickness (meters)
     "young": 85242.0,      # Young's Modulus (Elasticity)
 
     # Flag Geometry

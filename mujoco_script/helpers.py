@@ -10,6 +10,7 @@ def generate_and_save_topology():
     (Iterates down column 0, then down column 1, etc.)
     """
     edges = []
+    faces = []
     H, W = cfg.PHYSICS_CONFIG['grid_h'], cfg.PHYSICS_CONFIG['grid_w']
     
     # Helper to get index in Column-Major order
@@ -36,51 +37,75 @@ def generate_and_save_topology():
             
             edges.append([curr, below])
             edges.append([below, curr])
-
-    # Save
-    edge_index = np.array(edges).T
-    save_path = os.path.join(cfg.topology_output_folder, "topology_edge_index.npy")
-    np.save(save_path, edge_index)
-    
-    print(f"✅ Topology saved to {save_path}")
-    print(f"   Nodes: {H*W}, Edges: {edge_index.shape[1]}")
-
-def get_triangle_indices(H, W):
-    """
-    Generates triangle indices for a COLUMN-MAJOR grid to match MuJoCo flexcomp.
-    Formula: idx = col * H + row
-    """
-    indices = []
-    
-    # Helper to ensure consistency
-    def get_idx(r, c):
-        return c * H + r
-
+            
+    # 3, Generate Faces (Triangles)
     for r in range(H - 1):
         for c in range(W - 1):
-            # Calculate indices using Column-Major logic
-            # (r, c)     (r, c+1)
-            #   TL -------- TR
-            #   |         / |
-            #   |       /   |
-            #   |     /     |
-            #   BL -------- BR
-            # (r+1, c)   (r+1, c+1)
+            # Get the 4 corners of the current quad (square)
+            tl = get_idx(r, c)           # Top-Left
+            bl = get_idx(r + 1, c)       # Bottom-Left
+            tr = get_idx(r, c + 1)       # Top-Right
+            br = get_idx(r + 1, c + 1)   # Bottom-Right
 
-            tl = get_idx(r, c)          # Top-Left
-            tr = get_idx(r, c + 1)      # Top-Right
-            bl = get_idx(r + 1, c)      # Bottom-Left
-            br = get_idx(r + 1, c + 1)  # Bottom-Right
+            # Split the quad into two triangles
+            # Triangle 1: Top-Left, Bottom-Left, Top-Right
+            faces.append([tl, bl, tr])
+            # Triangle 2: Top-Right, Bottom-Left, Bottom-Right
+            faces.append([tr, bl, br])
+
+    # Save Edges
+    edge_index = np.array(edges).T
+    edge_save_path = os.path.join(cfg.topology_output_folder, "topology_edge_index.npy")
+    np.save(edge_save_path, edge_index)
+    
+    # Save Faces
+    faces_array = np.array(faces)
+    faces_save_path = os.path.join(cfg.topology_output_folder, "topology_faces.npy")
+    np.save(faces_save_path, faces_array)
+    
+    print(f"✅ Topology saved to {cfg.topology_output_folder}")
+    print(f"   Nodes: {H*W}")
+    print(f"   Edges: {edge_index.shape[1]}")
+    print(f"   Faces: {faces_array.shape[0]}")
+    
+    return edge_index, faces_array
+
+# def get_triangle_indices(H, W):
+#     """
+#     Generates triangle indices for a COLUMN-MAJOR grid to match MuJoCo flexcomp.
+#     Formula: idx = col * H + row
+#     """
+#     indices = []
+    
+#     # Helper to ensure consistency
+#     def get_idx(r, c):
+#         return c * H + r
+
+#     for r in range(H - 1):
+#         for c in range(W - 1):
+#             # Calculate indices using Column-Major logic
+#             # (r, c)     (r, c+1)
+#             #   TL -------- TR
+#             #   |         / |
+#             #   |       /   |
+#             #   |     /     |
+#             #   BL -------- BR
+#             # (r+1, c)   (r+1, c+1)
+
+#             tl = get_idx(r, c)          # Top-Left
+#             tr = get_idx(r, c + 1)      # Top-Right
+#             bl = get_idx(r + 1, c)      # Bottom-Left
+#             br = get_idx(r + 1, c + 1)  # Bottom-Right
             
-            # Triangle 1 (Top-Left, Bottom-Left, Top-Right)
-            # Note: The winding order (CCW vs CW) determines the normal direction.
-            # Standard CCW:
-            indices.append([tl, bl, tr])
+#             # Triangle 1 (Top-Left, Bottom-Left, Top-Right)
+#             # Note: The winding order (CCW vs CW) determines the normal direction.
+#             # Standard CCW:
+#             indices.append([tl, bl, tr])
             
-            # Triangle 2 (Top-Right, Bottom-Left, Bottom-Right)
-            indices.append([tr, bl, br])
+#             # Triangle 2 (Top-Right, Bottom-Left, Bottom-Right)
+#             indices.append([tr, bl, br])
             
-    return np.array(indices, dtype=np.int32)
+#     return np.array(indices, dtype=np.int32)
 
 
 def save_obj(vertices, faces, filename):
