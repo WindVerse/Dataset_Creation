@@ -2,8 +2,8 @@ import os
 import shutil
 import numpy as np
 
-target = "displacements"     # displacements, velocity_differences, accelerations
-dataset_ver = 7
+target = "acc"     # displacements, velocity_differences, accelerations, acc_new, acc
+dataset_ver = 6
 num_of_iterations = 100
 frames_per_iteration = 300
 fps = 10
@@ -21,6 +21,15 @@ elif target == "velocity_differences":
 elif target == "accelerations":
     target_path = os.path.join(target_path, "accelerations")
     print("targeting acceleration...")
+elif target == "acc_new":
+    target_path = os.path.join(target_path, "acc_new")
+    print("targeting kinematic acceleration (acc_new)...")
+elif target == "acc":
+    target_path = os.path.join(target_path, "acc")
+    print("targeting kinematic acceleration (acc)...")
+else:
+    raise ValueError("Invalid target type specified.")
+
 
 if os.path.exists(target_path):
     shutil.rmtree(target_path)
@@ -34,17 +43,47 @@ for i in range (1, num_of_iterations+1):
             second = np.load(dataset_path + f'/flag_{i:03d}_{j+1:03d}.npy')
             displacement = second[:,:3] - first[:,:3]
             np.save(target_path + f'/target_{i:03d}_{j:03d}.npy', displacement)
+            
         elif target == "velocity_differences":
             first = np.load(dataset_path + f'/flag_{i:03d}_{j:03d}.npy')
             second = np.load(dataset_path + f'/flag_{i:03d}_{j+1:03d}.npy')
             velocity_difference = second[:,3:] - first[:,3:]
             np.save(target_path + f'/target_{i:03d}_{j:03d}.npy', velocity_difference)
+            
         elif target == "accelerations":
             first = np.load(dataset_path + f'/flag_{i:03d}_{j:03d}.npy')
             second = np.load(dataset_path + f'/flag_{i:03d}_{j+1:03d}.npy')
             acceleration = (second[:,3:] - first[:,3:]) / delta_t
             np.save(target_path + f'/target_{i:03d}_{j:03d}.npy', acceleration)
+            
+        elif target == "acc_new":
+            if j == 0:
+                curr = np.load(dataset_path + f'/flag_{i:03d}_{j:03d}.npy')
+                acc_new = np.zeros_like(curr[:, :3])
+            else:
+                prev = np.load(dataset_path + f'/flag_{i:03d}_{j-1:03d}.npy')
+                curr = np.load(dataset_path + f'/flag_{i:03d}_{j:03d}.npy')
+                next_f = np.load(dataset_path + f'/flag_{i:03d}_{j+1:03d}.npy')
+                
+                acc_new = (next_f[:,:3] - 2 * curr[:,:3] + prev[:,:3]) / (0.5 * (delta_t ** 2))
+                
+            np.save(target_path + f'/target_{i:03d}_{j:03d}.npy', acc_new)
+        
+        elif target == "acc":
+            if j == 0:
+                curr = np.load(dataset_path + f'/flag_{i:03d}_{j:03d}.npy')
+                acc = np.zeros_like(curr[:, :3])
+            else:
+                prev = np.load(dataset_path + f'/flag_{i:03d}_{j-1:03d}.npy')
+                curr = np.load(dataset_path + f'/flag_{i:03d}_{j:03d}.npy')
+                next_f = np.load(dataset_path + f'/flag_{i:03d}_{j+1:03d}.npy')
+                
+                # MGN Simplified Target (assuming dt=1)
+                acc = next_f[:,:3] - 2 * curr[:,:3] + prev[:,:3]
+                
+            np.save(target_path + f'/target_{i:03d}_{j:03d}.npy', acc)
+            
         else:
             raise ValueError("Invalid target type specified.")
 
-print(f"targets saved to {target_path}")
+print(f"\ntargets saved to {target_path}")

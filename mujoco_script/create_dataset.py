@@ -102,7 +102,6 @@ if __name__ == "__main__":
         
         # 1. Random Scale (Wind Strength)
         scale_factor = random.uniform(0.2, 2)
-        # scale_factor = 1
         
         # 2. Random Rotation (Wind Direction)
         theta = random.uniform(0, 2 * np.pi)

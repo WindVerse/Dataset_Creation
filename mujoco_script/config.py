@@ -14,12 +14,12 @@ if TEST:
     MAX_FRAMES = FPS * SECONDS
     SUBSTEPS = 100
 else:
-    DATASET_VERSION = "8"
+    DATASET_VERSION = "7"
     NUM_RUNS = 1000
-    FPS = 10
+    FPS = 100
     SECONDS = 30
     MAX_FRAMES = FPS * SECONDS
-    SUBSTEPS = 100
+    SUBSTEPS = 10
 
 # ==========================================
 # PHYSICS PROPERTIES
@@ -27,18 +27,18 @@ else:
 
 PHYSICS_CONFIG = {
     
-    "air_density": 1.225,
-    "drag_coeff": 0.1,
+    "air_density": 1,
+    "drag_coeff": 0,
     
 
     # Simulation Precision (Lower is more stable)
     "timestep": 1 / FPS / SUBSTEPS,
 
     # Environment
-    "viscosity": 0.3,     # Air thickness
+    "viscosity": 0.2,     # Air thickness
 
     # Cloth Material (Nylon-like)
-    "node_mass": 0.005,    # Should be 0.0001 to get 250 GSM
+    "node_mass": 0.001,    # Should be 0.0001 to get 250 GSM
     "solref": f"{2*(1 / FPS / SUBSTEPS)} 1",
 
     # Springs (Tendons)
@@ -46,7 +46,7 @@ PHYSICS_CONFIG = {
     
     # from Paper: Evaluating grasp quality metrics of cloth like deformable objects in simulation
     "poisson": 0.403,      # Poisson's Ratio
-    "thickness": 0.0005,   # Shell Thickness (meters)
+    "thickness": 0.001,   # Shell Thickness (meters)
     "young": 85242.0,      # Young's Modulus (Elasticity)
 
     # Flag Geometry
