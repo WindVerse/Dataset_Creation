@@ -88,8 +88,8 @@ if __name__ == "__main__":
         vel_list = [data_sim.cvel[i][:3].copy() for i in cloth_ids]
         combined = np.hstack((np.array(pos_list), np.array(vel_list)))
         
-        np.save(os.path.join(cfg.flag_output_folder, f"flag_{run:03d}_000.npy"), combined)
-        np.save(os.path.join(cfg.wind_output_folder, f"wind_{run:03d}_000.npy"), np.zeros((8, 3)))
+        np.save(os.path.join(cfg.flag_output_folder, f"flag_{run:04d}_0000.npy"), combined)
+        np.save(os.path.join(cfg.wind_output_folder, f"wind_{run:04d}_0000.npy"), np.zeros((8, 3)))
         print(f"  Run {run} | Frame 000 (Init) Saved")
         
         if run == 1:
@@ -205,8 +205,8 @@ if __name__ == "__main__":
             vel_list = [data_sim.cvel[i][3:].copy() for i in cloth_ids]
             combined = np.hstack((np.array(pos_list), np.array(vel_list)))
             
-            np.save(os.path.join(cfg.flag_output_folder, f"flag_{run:03d}_{frame_idx:03d}.npy"), combined)
-            np.save(os.path.join(cfg.wind_output_folder, f"wind_{run:03d}_{frame_idx:03d}.npy"), current_8_winds)
+            np.save(os.path.join(cfg.flag_output_folder, f"flag_{run:04d}_{frame_idx:04d}.npy"), combined)
+            np.save(os.path.join(cfg.wind_output_folder, f"wind_{run:04d}_{frame_idx:04d}.npy"), current_8_winds)
             
             # Dynamic progress update
             print(f"\r  Run {run} | Frame {frame_idx}/{cfg.MAX_FRAMES} Saved", end="", flush=True)
