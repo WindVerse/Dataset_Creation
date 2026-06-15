@@ -35,8 +35,22 @@ def generate_and_save_topology():
             curr = get_idx(r, c)
             below = get_idx(r + 1, c)
             
+            # Vertical edges
             edges.append([curr, below])
             edges.append([below, curr])
+            
+            # 2. Diagonal (Shear) edges
+            if c < W - 1:
+                right = get_idx(r, c + 1)
+                bottom_right = get_idx(r + 1, c + 1)
+                
+                # Cross-brace 1: Top-Left to Bottom-Right
+                edges.append([curr, bottom_right])
+                edges.append([bottom_right, curr])
+                
+                # Cross-brace 2: Bottom-Left to Top-Right
+                edges.append([below, right])
+                edges.append([right, below])
             
     # 3, Generate Faces (Triangles)
     for r in range(H - 1):

@@ -14,12 +14,12 @@ if TEST:
     MAX_FRAMES = FPS * SECONDS
     SUBSTEPS = 100
 else:
-    DATASET_VERSION = "7"
-    NUM_RUNS = 1000
-    FPS = 100
+    DATASET_VERSION = "8"
+    NUM_RUNS = 100
+    FPS = 10
     SECONDS = 30
     MAX_FRAMES = FPS * SECONDS
-    SUBSTEPS = 10
+    SUBSTEPS = 100
 
 # ==========================================
 # PHYSICS PROPERTIES
@@ -38,7 +38,7 @@ PHYSICS_CONFIG = {
     "viscosity": 0.2,     # Air thickness
 
     # Cloth Material (Nylon-like)
-    "node_mass": 0.001,    # Should be 0.0001 to get 250 GSM
+    "node_mass": 0.002,    # Should be 0.0001 to get 250 GSM
     "solref": f"{2*(1 / FPS / SUBSTEPS)} 1",
 
     # Springs (Tendons)
