@@ -10,7 +10,7 @@ if TEST:
     DATASET_VERSION = "temp"
     NUM_RUNS = 1
     FPS = 10
-    SECONDS = 3
+    SECONDS = 1
     MAX_FRAMES = FPS * SECONDS
     SUBSTEPS = 100
 else:
@@ -27,8 +27,8 @@ else:
 
 PHYSICS_CONFIG = {
     
-    "air_density": 1,
-    "drag_coeff": 0,
+    "air_density": 1.2,
+    "drag_coeff": 0.1,
     
 
     # Simulation Precision (Lower is more stable)
@@ -38,7 +38,7 @@ PHYSICS_CONFIG = {
     "viscosity": 0.2,     # Air thickness
 
     # Cloth Material (Nylon-like)
-    "node_mass": 0.002,    # Should be 0.0001 to get 250 GSM
+    "node_mass": 0.0002,    # Should be 0.0001 to get 250 GSM
     "solref": f"{2*(1 / FPS / SUBSTEPS)} 1",
 
     # Springs (Tendons)

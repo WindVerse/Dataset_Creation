@@ -1,7 +1,8 @@
+import json
+
 import mujoco
 import numpy as np
 import os
-import random
 import sys
 import time
 
@@ -15,19 +16,29 @@ import generate_validate_xml as xml_gen
 # ==========================================
 if __name__ == "__main__":
     
+    # Save physics config
+    with open(os.path.join(cfg.output_folder,"parameters.json"), "w") as file:
+        json.dump(cfg.PHYSICS_CONFIG, file, indent=20)
+        file.close()
+    
     wind_array = cfg.WIND_ARRAY
+    
+    # save winds
+    with open(os.path.join(cfg.output_folder,"winds.txt"), "w") as file:
+        for wind in wind_array:
+            file.write(str(wind)+"\n")
+        file.close()
         
     # Use config length of wind aray to get num of runs
     num_runs = len(wind_array)
     
     H, W = cfg.PHYSICS_CONFIG['grid_h'], cfg.PHYSICS_CONFIG['grid_w']
-        
-    triangle_indices = help.get_triangle_indices(H, W)
-    num_triangles = len(triangle_indices)
     
-    help.generate_and_save_topology()
+    edge_index, faces_array = help.generate_and_save_topology()
+    num_triangles = len(faces_array)
+    
 
-    print("🚀 Initializing MuJoCo...")
+    print("Initializing MuJoCo...")
     xml_string = xml_gen.get_model_xml_explicit()
     model = mujoco.MjModel.from_xml_string(xml_string)
     data_sim = mujoco.MjData(model)
@@ -55,9 +66,9 @@ if __name__ == "__main__":
             if body_id != -1:
                 cloth_ids.append(body_id)
             else:
-                print(f"⚠️ Warning: Could not find body {name}")
+                print(f"Warning: Could not find body {name}")
 
-    print(f"🚩 Flag has {len(cloth_ids)} nodes (Should be {H*W}).")
+    print(f"Flag has {len(cloth_ids)} nodes (Should be {H*W}).")
 
     print("=== STARTING SIMULATIONS ===")
 
@@ -71,7 +82,7 @@ if __name__ == "__main__":
         pos_list = [data_sim.xpos[i].copy() for i in cloth_ids]
         
         np.save(os.path.join(cfg.flag_output_folder, f"flag_{run:03d}_000.npy"), pos_list)
-        help.save_obj(np.array(pos_list), triangle_indices, os.path.join(cfg.flag_obj_folder, f"flag_{run:03d}_000.obj"))
+        help.save_obj(np.array(pos_list), faces_array, os.path.join(cfg.flag_obj_folder, f"flag_{run:03d}_000.obj"))
         print(f"  Run {run} | Frame 000 (Init) Saved")
         
         if run == 1:
@@ -91,13 +102,13 @@ if __name__ == "__main__":
             for _ in range(cfg.SUBSTEPS):
 
                 all_pos = np.array([data_sim.xpos[i] for i in cloth_ids])
-                all_vel = np.array([data_sim.cvel[i][3:] for i in cloth_ids])
+                all_vel = np.array([data_sim.cvel[i][3:] for i in cloth_ids]) # Linear velocity
                 
                 # 2. Get Wind for Triangles
                 # We need the position of the CENTER of each triangle
-                p0 = all_pos[triangle_indices[:, 0]]
-                p1 = all_pos[triangle_indices[:, 1]]
-                p2 = all_pos[triangle_indices[:, 2]]
+                p0 = all_pos[faces_array[:, 0]]
+                p1 = all_pos[faces_array[:, 1]]
+                p2 = all_pos[faces_array[:, 2]]
                 centers = (p0 + p1 + p2) / 3.0
                 
                 # Vectorized wind lookup (You'll need to update get_cube_wind to handle arrays or loop briefly)
@@ -108,7 +119,7 @@ if __name__ == "__main__":
                 
                 # 3. Compute Aero Forces (The heavy lifting)
                 # returns (M, 3) forces
-                tri_forces = help.compute_drag_lift_vectorized_arcsim(all_pos, all_vel, triangle_indices, wind_vecs)
+                tri_forces = help.compute_drag_lift_vectorized_arcsim(all_pos, all_vel, faces_array, wind_vecs)
                 
                 # 4. Accumulate Forces on Nodes
                 # We need to sum up forces because one node shares multiple triangles
@@ -116,11 +127,11 @@ if __name__ == "__main__":
                 
                 # Numpy magic: Add at specific indices (handles duplicates correctly)
                 # Add force to Vertex 0 of every triangle
-                np.add.at(node_forces, triangle_indices[:, 0], tri_forces)
+                np.add.at(node_forces, faces_array[:, 0], tri_forces)
                 # Add force to Vertex 1
-                np.add.at(node_forces, triangle_indices[:, 1], tri_forces)
+                np.add.at(node_forces, faces_array[:, 1], tri_forces)
                 # Add force to Vertex 2
-                np.add.at(node_forces, triangle_indices[:, 2], tri_forces)
+                np.add.at(node_forces, faces_array[:, 2], tri_forces)
                 
                 # 5. Apply Safe Clamp & Send to MuJoCo
                 MAX_FORCE = 0.05
@@ -149,7 +160,7 @@ if __name__ == "__main__":
             pos_list = [data_sim.xpos[i].copy() for i in cloth_ids]
             
             np.save(os.path.join(cfg.flag_output_folder, f"flag_{run:03d}_{frame_idx:03d}.npy"), pos_list)
-            help.save_obj(np.array(pos_list), triangle_indices, os.path.join(cfg.flag_obj_folder, f"flag_{run:03d}_{frame_idx:03d}.obj"))
+            help.save_obj(np.array(pos_list), faces_array, os.path.join(cfg.flag_obj_folder, f"flag_{run:03d}_{frame_idx:03d}.obj"))
             
             # # Dynamic progress update
             # print(f"\r  Run {run} | Frame {frame_idx}/{cfg.MAX_FRAMES} Saved", end="", flush=True)
