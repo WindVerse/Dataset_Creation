@@ -7,29 +7,48 @@ import config as cfg
 import helpers as help
 import xml_generator as xml_gen
 
-def generate_smooth_wind_series(num_frames, base_wind=(5.0, 6.0, 0), gust_strength=1.5, smoothness=0.9):
+def generate_smooth_wind_series(num_frames, base_wind=(5.0, 6.0, 0), gust_strength=0.5, smoothness=0.95):
+    """
+    Generates wind by fluctuating magnitude and subtly wobbling direction.
+    """
     wind_series = np.zeros((num_frames, 3))
     
-    # Initialize at the base wind
-    current_wind = np.array(base_wind, dtype=float)
+    # 1. Calculate Base Magnitude and Direction
+    base_mag = np.linalg.norm(base_wind)
+    base_dir = np.array(base_wind) / (base_mag + 1e-8)
+    
+    current_mag = base_mag
+    
+    # Track a small angle offset for direction wobbling
+    current_angle_offset = 0.0 
     
     for t in range(num_frames):
-        # Generate random noise centered at 0
-        noise = np.random.normal(0, gust_strength, 3)
+        # 2. Fluctuate Magnitude (Speed)
+        mag_noise = np.random.normal(0, gust_strength)
+        mag_drift = (base_mag - current_mag) * (1 - smoothness)
+        current_mag = current_mag + mag_drift + mag_noise
         
-        # Calculate the drift: how far off-base we are
-        # We apply the smoothing to the CHANGE, not just the absolute value
-        drift = (np.array(base_wind) - current_wind) * (1 - smoothness)
+        # 3. Subtle Wobble (Direction)
+        # Randomly change the angle offset slowly (low-pass filter)
+        angle_noise = np.random.normal(0, 0.05) # Very small directional jitter
+        current_angle_offset = (current_angle_offset * 0.9) + angle_noise
         
-        current_wind = current_wind + drift + noise
+        # 4. Construct Vector: Base direction + small rotation
+        # Rotate base direction slightly based on the offset
+        rot_matrix = np.array([
+            [np.cos(current_angle_offset), -np.sin(current_angle_offset), 0],
+            [np.sin(current_angle_offset),  np.cos(current_angle_offset), 0],
+            [0, 0, 1]
+        ])
         
-        wind_series[t] = current_wind
+        current_dir = rot_matrix @ base_dir
+        wind_series[t] = current_dir * current_mag
         
     return wind_series
 
 if __name__ == "__main__":
     # Settings for Test Dataset
-    TEST_FRAMES = 101
+    TEST_FRAMES = 1001
     OUTPUT_DIR = "../../datasets/test_set"
     os.makedirs(os.path.join(OUTPUT_DIR, "flags"), exist_ok=True)
     os.makedirs(os.path.join(OUTPUT_DIR, "winds"), exist_ok=True)
@@ -45,7 +64,7 @@ if __name__ == "__main__":
     cloth_ids = [mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, f"cloth_{c*H + r}") for c in range(W) for r in range(H)]
 
     # Generate 1 long natural wind sequence (100 seconds)
-    natural_wind = generate_smooth_wind_series(TEST_FRAMES, base_wind=(0.5, 0.2, 0))
+    natural_wind = generate_smooth_wind_series(TEST_FRAMES, base_wind=(1, 0.4, 0))
 
     print(f"Starting long-duration simulation ({TEST_FRAMES} frames)...")
     
@@ -54,7 +73,7 @@ if __name__ == "__main__":
     for t in range(TEST_FRAMES):
         # 1. Get smooth wind for this frame
         current_wind = natural_wind[t]
-        # Expand into the 8-cube format your model expects
+        # Expand into the 8-cube format model expects
         current_8_winds = np.tile(current_wind, (8, 1))
 
         for _ in range(cfg.SUBSTEPS):

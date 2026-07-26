@@ -27,27 +27,27 @@ else:
 
 PHYSICS_CONFIG = {
     
-    "air_density": 1.2,
-    "drag_coeff": 0.1,
+    "air_density": 1,
+    "drag_coeff": 0,
     
 
     # Simulation Precision (Lower is more stable)
     "timestep": 1 / FPS / SUBSTEPS,
 
     # Environment
-    "viscosity": 0.2,     # Air thickness
+    "viscosity": 0.1,     # Air thickness
 
-    # Cloth Material (Nylon-like)
-    "node_mass": 0.0002,    # Should be 0.0001 to get 250 GSM
+    # Cloth Material
+    "node_mass": 0.0005,    # Should be 0.0001 to get 250 GSM
     "solref": f"{2*(1 / FPS / SUBSTEPS)} 1",
 
     # Springs (Tendons)
-    "damping": 1.0,       # Resistance to vibration
+    "damping": 0.5,       # Resistance to vibration
     
     # from Paper: Evaluating grasp quality metrics of cloth like deformable objects in simulation
     "poisson": 0.403,      # Poisson's Ratio
-    "thickness": 0.001,   # Shell Thickness (meters)
-    "young": 85242.0,      # Young's Modulus (Elasticity)
+    "thickness": 0.0005,   # Shell Thickness (meters)
+    "young": 85242.0 * 0.05,      # Young's Modulus (Elasticity)
 
     # Flag Geometry
     "grid_h": 20,         # Rows

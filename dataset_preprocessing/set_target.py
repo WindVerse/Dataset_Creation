@@ -5,7 +5,7 @@ import numpy as np
 target = "acc"     # displacements, velocity_differences, accelerations, acc_new, acc
 dataset_ver = "test_set"
 num_of_iterations = 1
-frames_per_iteration = 100
+frames_per_iteration = 500
 fps = 10
 delta_t = 1 / fps
 
